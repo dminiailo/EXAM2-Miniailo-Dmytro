@@ -1,0 +1,75 @@
+using System;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+using System.Net.Http;
+using System.Security.Cryptography;
+
+namespace TlsCertificateChecker
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            string url = "https://www.example.com"; // Вкажіть URL веб-сервера для перевірки
+            CheckCertificate(url);
+        }
+
+        public static void CheckCertificate(string url)
+        {
+            try
+            {
+                // Створюємо об'єкт HttpClientHandler для налаштування SSL
+                var handler = new HttpClientHandler();
+                handler.ServerCertificateCustomValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+                {
+                    // Перевірка дійсності SSL-сертифіката
+                    if (sslPolicyErrors == SslPolicyErrors.None)
+                    {
+                        // Якщо сертифікат дійсний, виводимо хеш публічного ключа
+                        Console.WriteLine("SSL сертифікат дійсний.");
+                        DisplayPublicKeyHash(certificate);
+                        return true;
+                    }
+                    else
+                    {
+                        // Якщо є помилки валідації сертифіката
+                        Console.WriteLine($"Помилка SSL сертифіката: {sslPolicyErrors}");
+                        return false;
+                    }
+                };
+
+                using (var client = new HttpClient(handler))
+                {
+                    // Виконуємо запит для ініціалізації TLS з'єднання та перевірки сертифіката
+                    var response = client.GetAsync(url).Result;
+                    Console.WriteLine($"HTTP статус код: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Помилка при встановленні з'єднання: {ex.Message}");
+            }
+        }
+
+        public static void DisplayPublicKeyHash(X509Certificate2 cert)
+        {
+            // Отримуємо публічний ключ сертифіката
+            var publicKey = cert.GetRSAPublicKey();
+            if (publicKey != null)
+            {
+                // Отримуємо хеш публічного ключа (SHA-256)
+                byte[] publicKeyBytes = publicKey.ExportSubjectPublicKeyInfo();
+                using (var sha256 = SHA256.Create())
+                {
+                    byte[] hash = sha256.ComputeHash(publicKeyBytes);
+                    Console.WriteLine("Хеш публічного ключа (SHA-256):");
+                    Console.WriteLine(BitConverter.ToString(hash).Replace("-", "").ToLower());
+                }
+            }
+            else
+            {
+                Console.WriteLine("Не вдалося отримати публічний ключ.");
+            }
+        }
+    }
+}
